@@ -33,7 +33,6 @@ jobs:
           path: '**/build/reports/tests/'
 
           android_test_job:
-            name: Android Tests
             runs-on: macos-latest
             continue-on-error: true
             steps:
