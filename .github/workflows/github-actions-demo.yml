@@ -1,7 +1,7 @@
 name: GitHub Actions Demo
 on: [push]
 jobs:
-  Explore-GitHub-Actions:
+  local_test_job:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository code
