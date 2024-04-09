@@ -64,7 +64,7 @@ jobs:
           name: android-test-reports
           path: '**/build/reports/androidTests/'
 
-          build_job:
+  build_job:
             name: Building the APK
             runs-on: ubuntu-latest
             continue-on-error: true
