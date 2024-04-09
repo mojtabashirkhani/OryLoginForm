@@ -1,5 +1,4 @@
 name: GitHub Actions Demo
-run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
 on: [push]
 jobs:
   Explore-GitHub-Actions:
@@ -33,6 +32,7 @@ jobs:
           path: '**/build/reports/tests/'
 
           android_test_job:
+            name: Android Tests
             runs-on: macos-latest
             continue-on-error: true
             steps:
