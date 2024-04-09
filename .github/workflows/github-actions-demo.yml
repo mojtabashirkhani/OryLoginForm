@@ -1,21 +1,116 @@
-name: Android CI
+name: Build and Test
+
 on:
-  push:
-    branches: [ master ]
-    pull:
-      branches: [ master ]
+  workflow_dispatch:
+
 jobs:
-  build:
+
+  local_test_job:
+    name: Running Local Tests
     runs-on: ubuntu-latest
-  steps:
-    - name: Checkout
-      uses: actions/checkout@v3
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up JDK 11
+        uses: actions/setup-java@v1
+        with:
+          java-version: 11
+      - name: Print Java version
+        run: javac -version
+      - name: Change wrapper permissions
+        run: chmod +x ./gradlew
+      - name: Restore Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Run Debug Tests
+        run: ./gradlew testDebugUnitTest --continue
+      - name: Upload Test Reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: test-reports
+          path: '**/build/reports/tests/'
 
-    - name: Setup Java
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'OryLoginForm'
-        java-version: 17
+  android_test_job:
+    name: Android Tests
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Change wrapper permissions
+        run: chmod +x ./gradlew
+      - name: Restore Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Instrumentation Tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          script: ./gradlew connectedAndroidTest
 
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v2.0.10
+      - name: Upload Android Test Reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: android-test-reports
+          path: '**/build/reports/androidTests/'
+
+  build_job:
+    name: Building the APK
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Restore Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Change wrapper permissions
+        run: chmod +x ./gradlew
+      - name: Assemble Debug
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v2
+        with:
+          name: apk
+          path: app/build/outputs/apk/debug/**.apk
+
+  notification_job:
+    needs: [ local_test_job, android_test_job, build_job ]
+    name: Notify Workflow Results
+    runs-on: ubuntu-latest
+    steps:
+      - uses: technote-space/workflow-conclusion-action@v1
+      - name: Send mail
+        if: failure()
+        uses: dawidd6/action-send-mail@v2
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: Github Actions Job result
+          body: Build job of ${{github.repository}} completed successfully! The Job worflow ${{ github.workflow }} of ${{ github.repository }} has result of ${{ env.WORKFLOW_CONCLUSION }}
+          to: someEmail@gmail.com
+          from: From Github Action
